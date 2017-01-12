@@ -1,5 +1,6 @@
 require 'puppet'
 require 'yaml'
+require 'facter'
 
 begin
   require 'hipchat'
@@ -11,6 +12,10 @@ Puppet::Reports.register_report(:hipchat) do
   configfile = File.join([File.dirname(Puppet.settings[:config]), 'hipchat.yaml'])
   raise(Puppet::ParseError, "Hipchat report config file #{configfile} not readable") unless File.exist?(configfile)
   config = YAML.load_file(configfile)
+  if File.exist?('/etc/foreman.yaml')
+    foreman = YAML.load_file('/etc/foreman.yaml')
+    FOREMAN_SERVER = foreman[:url]
+  end
 
   # due to previous code stringifying false in place of undef we need to hard set those values to undef if 'false' for backward compatibility
   config.delete(':hipchat_dashboard')   if config[:hipchat_dashboard] == 'false'
@@ -72,9 +77,11 @@ Puppet::Reports.register_report(:hipchat) do
     return if File.exist?(DISABLED_FILE)
     return unless HIPCHAT_STATUSES.include?(self.status) || HIPCHAT_STATUSES.include?('all')
 
-    Puppet.debug "Sending status for #{self.host} to Hipchat channel #{HIPCHAT_ROOM}"
-    msg = "Puppet run for #{self.host} #{emote(self.status)} #{self.status} at #{Time.now.asctime} on #{self.configuration_version} in #{self.environment}"
-    if HIPCHAT_PUPPETBOARD
+    Puppet.debug "Sending status for #{Facter.value(:ec2_instance_id)} to Hipchat channel #{HIPCHAT_ROOM}"
+    msg = "Muppet run for #{Facter.value(:ec2_instance_id)} #{Facter.value(:role)} #{emote(self.status)} #{self.status} at #{Time.now.asctime} in #{Facter.value(:realm)}"
+    if File.exist?('/etc/foreman.yaml')
+      msg << ", see the full report at: #{FOREMAN_SERVER}/hosts/#{Facter.value(:ec2_instance_id)}.#{Facter.value(:domain)}"
+    elsif HIPCHAT_PUPPETBOARD
       msg << ": #{HIPCHAT_PUPPETBOARD}/report/#{self.host}/#{self.configuration_version}"
     elsif HIPCHAT_DASHBOARD
       msg << ": #{HIPCHAT_DASHBOARD}/nodes/#{self.host}/view"
