@@ -21,6 +21,18 @@ class report_hipchat (
   $proxy          = $::report_hipchat::params::proxy,
 ) inherits report_hipchat::params {
 
+  exec { 'create_report_directory':
+    command => '/bin/mkdir -p /var/lib/puppet/lib/puppet/reports/',
+    unless  => 'test -d /var/lib/puppet/lib/puppet/reports/',
+    require => Class['puppet'],
+  }
+
+  file { '/var/lib/puppet/lib/puppet/reports/hipchat.rb':
+    ensure  => 'file',
+    source  => 'puppet:///modules/report_hipchat/hipchat_report.rb',
+    require => Exec['create_report_directory'],
+  }
+
   file { $config_file:
     ensure  => file,
     owner   => $owner,
